@@ -15,7 +15,6 @@ Traditional LSTM models remain static after training and cannot adapt to the non
 **Key results:**
 - CVRMSE improved by **23.3%** (0.30 → 0.23) vs. baseline LSTM
 - MAPE reduced by **25.2%** (18.36% → 13.73%) vs. baseline LSTM
-- Overall system achieves **12.87% energy savings** during working hours
 
 ---
 
