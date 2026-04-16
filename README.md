@@ -13,9 +13,9 @@ This work is associated with the IEEE conference paper:
 Traditional LSTM models struggle with the non-stationary nature of office energy data caused by variable occupant behavior. This system addresses that by using a **DDPG reinforcement learning agent** to dynamically adjust the LSTM model's learning rate at inference time — effectively allowing the model to adapt to real-time prediction errors.
 
 **Key results:**
-- CVRMSE improved by **23.3%** compared to baseline LSTM
+- CVRMSE improved by **23.3%** (0.30 → 0.23) compared to baseline LSTM
+- MAPE improved from **18.36% → 13.73%**
 - Electricity consumption reduced by **12.87%** in real-world office deployment
-- Model adapts online to behavioral drift without full retraining
 
 ---
 
@@ -49,6 +49,38 @@ LSTM Train  RL Train   (60% / 20% / 20% split)
   Prediction + Evaluation
   (RMSE, CVRMSE, MAPE)
 ```
+
+---
+
+## Results
+
+### Training Convergence
+
+![Training Curves](training_curves.png)
+
+The Bidirectional LSTM base model converges stably within 20 epochs.  
+Final training loss: **0.0200** | Validation loss: **0.0291**  
+Final training MAE: **0.1680** | Validation MAE: **0.2112**
+
+---
+
+### Prediction Performance
+
+![Prediction Results](prediction_results.png)
+
+Panel (a) shows full test period predictions (Nov 13–23, 2024).  
+Panel (b) shows a 9-hour detailed view on Nov 19, demonstrating that **RL-LSTM tracks actual values more closely** than the baseline LSTM, particularly during peak usage periods.
+
+---
+
+### Quantitative Evaluation
+
+| Metric | LSTM (Baseline) | RL-LSTM (Proposed) | Improvement |
+|---|---|---|---|
+| CVRMSE | 0.30 | **0.23** | ↓ 23.3% |
+| MAPE | 18.36% | **13.73%** | ↓ 4.63 pp |
+
+The DDPG agent dynamically adjusts the LSTM model's learning factor at each inference step based on the current prediction error, enabling continuous adaptation to behavioral drift without full retraining.
 
 ---
 
@@ -115,10 +147,12 @@ The script will:
 ## File Structure
 
 ```
-├── main.py               # Main training and evaluation pipeline
-├── lstm_rl_model.py      # Model definitions (LSTM, DDPG, DataProcessor)
-├── merged_data.csv       # Sensor dataset
-├── models/               # Saved model weights (generated on run)
+├── main.py                      # Main training and evaluation pipeline
+├── lstm_rl_model.py             # Model definitions (LSTM, DDPG, DataProcessor)
+├── merged_data.csv              # Sensor dataset
+├── training_curves.png          # LSTM training loss & MAE curves
+├── prediction_results.png       # LSTM vs RL-LSTM prediction comparison
+├── models/                      # Saved model weights (generated on run)
 │   ├── rl_lstm_model.pth
 │   ├── rl_actor.pth
 │   ├── rl_critic.pth
@@ -129,8 +163,6 @@ The script will:
 ---
 
 ## Citation
-
-If you use this code, please cite:
 
 ```bibtex
 @inproceedings{wang2025rl,
