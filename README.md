@@ -94,7 +94,6 @@ The DDPG agent dynamically adjusts LSTM weights at each inference step by comput
 - **Japan holiday-aware** time feature engineering (`jpholiday`)
 - **RobustScaler** for outlier-resilient feature normalization
 - **IQR-based outlier detection** for energy data cleaning
-- IEEE journal-quality visualization (Times New Roman, 300 DPI, EPS export)
 
 ---
 
