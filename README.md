@@ -1,6 +1,6 @@
 # RL-LSTM Energy Prediction for Office Buildings
 
-An energy consumption prediction system integrating **Bidirectional LSTM** and **Deep Deterministic Policy Gradient (DDPG)** reinforcement learning, designed for non-stationary building energy data.
+An energy consumption prediction system integrating **Bidirectional LSTM** and **Deep Deterministic Policy Gradient (DDPG)** reinforcement learning, designed for non-stationary building energy data caused by variable occupant behavior.
 
 This work is associated with the IEEE conference paper:
 > *RL-LSTM and Heuristic Optimization for Energy-Efficient Office Management*  
@@ -10,44 +10,48 @@ This work is associated with the IEEE conference paper:
 
 ## Overview
 
-Traditional LSTM models struggle with the non-stationary nature of office energy data caused by variable occupant behavior. This system addresses that by using a **DDPG reinforcement learning agent** to dynamically adjust the LSTM model's learning rate at inference time — effectively allowing the model to adapt to real-time prediction errors.
+Traditional LSTM models remain static after training and cannot adapt to the non-stationary mapping between environmental parameters and energy consumption caused by users' **Behavioral Change Capacity (BCC)**. This system addresses that by using a **DDPG reinforcement learning agent** to dynamically adjust LSTM model weights at inference time based on real-time prediction errors — enabling continuous adaptation without offline retraining.
 
 **Key results:**
-- CVRMSE improved by **23.3%** (0.30 → 0.23) compared to baseline LSTM
-- MAPE improved from **18.36% → 13.73%**
-- Electricity consumption reduced by **12.87%** in real-world office deployment
+- CVRMSE improved by **23.3%** (0.30 → 0.23) vs. baseline LSTM
+- MAPE reduced by **25.2%** (18.36% → 13.73%) vs. baseline LSTM
+- Overall system achieves **12.87% energy savings** during working hours
 
 ---
 
 ## System Architecture
 
 ```
-Raw Sensor Data (CSV)
+Raw Sensor Data (1-min interval, ~73,000 points)
         │
         ▼
-┌─────────────────┐
-│  DataProcessor  │  ← Outlier detection, PMV calculation,
-│                 │    time feature engineering, RobustScaler
-└────────┬────────┘
+┌─────────────────────┐
+│    DataProcessor    │  ← IQR outlier detection, PMV calculation,
+│                     │    cyclic time encoding, Japan holiday features,
+│                     │    RobustScaler normalization
+└────────┬────────────┘
          │
-    ┌────┴────┐
-    ▼         ▼
-LSTM Train  RL Train   (60% / 20% / 20% split)
-    │         │
-    ▼         ▼
-┌──────────────────────┐
-│   LSTMRLSystem       │
-│  ┌────────────────┐  │
-│  │  BiLSTM Model  │  │  ← Bidirectional LSTM + BatchNorm + Dropout
-│  └────────────────┘  │
-│  ┌────────────────┐  │
-│  │   DDPG Agent   │  │  ← Actor-Critic, Replay Buffer, soft target update
-│  └────────────────┘  │
-└──────────────────────┘
+    ┌────┴──────┐
+    ▼           ▼
+LSTM Train   RL Train    Test
+  (60%)       (20%)     (20%)
+    │           │
+    ▼           ▼
+┌────────────────────────────┐
+│       LSTMRLSystem         │
+│  ┌──────────────────────┐  │
+│  │  Bidirectional LSTM  │  │  64 hidden units, BN + Dropout
+│  │  (base predictor)    │  │
+│  └──────────────────────┘  │
+│  ┌──────────────────────┐  │
+│  │     DDPG Agent       │  │  Actor-Critic, Experience Replay (cap=10,000)
+│  │  (online adaptation) │  │  Action constrained to [-0.01, 0.01]
+│  └──────────────────────┘  │
+└────────────────────────────┘
          │
          ▼
   Prediction + Evaluation
-  (RMSE, CVRMSE, MAPE)
+  (CVRMSE, MAPE)
 ```
 
 ---
@@ -58,52 +62,52 @@ LSTM Train  RL Train   (60% / 20% / 20% split)
 
 ![Training Curves](training_curves.png)
 
-The Bidirectional LSTM base model converges stably within 20 epochs.  
-Final training loss: **0.0200** | Validation loss: **0.0291**  
-Final training MAE: **0.1680** | Validation MAE: **0.2112**
+Bidirectional LSTM base model converges stably within 20 epochs.
+
+| Metric | Training | Validation |
+|---|---|---|
+| Final Loss | 0.0200 | 0.0291 |
+| Final MAE | 0.1680 | 0.2112 |
 
 ---
 
-### Prediction Performance
+### Prediction Performance (RL-LSTM vs LSTM)
 
 ![Prediction Results](prediction_results.png)
 
-Panel (a) shows full test period predictions (Nov 13–23, 2024).  
-Panel (b) shows a 9-hour detailed view on Nov 19, demonstrating that **RL-LSTM tracks actual values more closely** than the baseline LSTM, particularly during peak usage periods.
-
----
-
-### Quantitative Evaluation
+Panel (a): Full test period (Nov 13–23, 2024) — RL-LSTM consistently tracks actual values more closely than baseline LSTM.  
+Panel (b): 9-hour detailed view (Nov 19, 09:00–18:00) — RL-LSTM shows clear advantage during high-variability peak usage periods.
 
 | Metric | LSTM (Baseline) | RL-LSTM (Proposed) | Improvement |
 |---|---|---|---|
 | CVRMSE | 0.30 | **0.23** | ↓ 23.3% |
-| MAPE | 18.36% | **13.73%** | ↓ 4.63 pp |
+| MAPE | 18.36% | **13.73%** | ↓ 25.2% |
 
-The DDPG agent dynamically adjusts the LSTM model's learning factor at each inference step based on the current prediction error, enabling continuous adaptation to behavioral drift without full retraining.
+The DDPG agent dynamically adjusts LSTM weights at each inference step by computing the normalized prediction error as the RL state signal, generating a continuous learning factor action, and applying gradient-based parameter updates — enabling closed-loop adaptation to behavioral drift.
 
 ---
 
 ## Features
 
-- **Bidirectional LSTM** with BatchNorm and Dropout for robust base prediction
-- **DDPG reinforcement learning** agent that generates dynamic learning factors to update LSTM weights online
-- **PMV (Predicted Mean Vote)** thermal comfort index calculation integrated as input feature
+- **Bidirectional LSTM** with 64 hidden units, BatchNorm, and Dropout for robust temporal modeling
+- **DDPG reinforcement learning** agent for online, closed-loop LSTM weight adaptation without retraining
+- **PMV (Predicted Mean Vote)** thermal comfort index as an input feature
 - **Japan holiday-aware** time feature engineering (`jpholiday`)
 - **RobustScaler** for outlier-resilient feature normalization
 - **IQR-based outlier detection** for energy data cleaning
+- IEEE journal-quality visualization (Times New Roman, 300 DPI, EPS export)
 
 ---
 
 ## Dataset
 
-Real-world sensor data collected from a small-to-medium office in Japan (2024).
+Real-world sensor data collected from a small staff office at Kyushu University, Japan (Oct–Nov 2024).
 
 | Feature | Description |
 |---|---|
 | `indoor_temperature` | Indoor air temperature (°C) |
 | `indoor_humidity` | Indoor relative humidity (%) |
-| `indoor_globe_temperature` | Globe temperature for MRT calculation (°C) |
+| `indoor_globe_temperature` | Globe temperature for MRT/PMV calculation (°C) |
 | `indoor_co2` | CO₂ concentration (ppm) |
 | `indoor_lux` | Illuminance (lux) |
 | `outdoor_temperature` | Outdoor air temperature (°C) |
@@ -133,12 +137,12 @@ python main.py
 ```
 
 The script will:
-1. Load and preprocess sensor data
+1. Load and preprocess sensor data (outlier detection, resampling)
 2. Calculate PMV thermal comfort index
 3. Engineer time features (cyclic encoding, Japanese holidays)
-4. Train Bidirectional LSTM base model (20 epochs)
-5. Train DDPG RL agent (100 episodes)
-6. Evaluate and compare LSTM vs RL-LSTM predictions
+4. Train Bidirectional LSTM base model (20 epochs, 60% data)
+5. Train DDPG RL agent (100 episodes, 20% data)
+6. Evaluate and compare LSTM vs RL-LSTM on test set (20% data)
 7. Save models to `models/` directory
 8. Export IEEE-quality figures (PNG + EPS)
 
@@ -148,8 +152,8 @@ The script will:
 
 ```
 ├── main.py                      # Main training and evaluation pipeline
-├── lstm_rl_model.py             # Model definitions (LSTM, DDPG, DataProcessor)
-├── merged_data.csv              # Sensor dataset
+├── lstm_rl_model.py             # Model definitions (BiLSTM, DDPG, DataProcessor)
+├── merged_data.csv              # Sensor dataset (Oct–Nov 2024, Kyushu University)
 ├── training_curves.png          # LSTM training loss & MAE curves
 ├── prediction_results.png       # LSTM vs RL-LSTM prediction comparison
 ├── models/                      # Saved model weights (generated on run)
@@ -176,8 +180,17 @@ The script will:
 
 ---
 
+## Related Work
+
+This repository implements the RL-LSTM prediction module of the broader **BI-TECH** system. For the full system including occupancy detection and IoT framework, see:
+
+> Y. Chen et al., "BI-Tech: An IoT-Based Behavioral Intervention System for User-Driven Energy Optimization in Commercial Spaces," *IEEE Access*, vol. 13, pp. 166853–166872, 2025. DOI: [10.1109/ACCESS.2025.3607329](https://doi.org/10.1109/ACCESS.2025.3607329)
+
+---
+
 ## Author
 
 **Wang Xiangyu (王 翔宇)**  
 Doctoral Student, Graduate School of Human-Environment Studies  
-Kyushu University, Japan
+Kyushu University, Japan  
+wang.xiangyu.425@s.kyushu-u.ac.jp
